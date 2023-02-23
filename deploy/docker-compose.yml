@@ -14,7 +14,7 @@ services:
     volumes:
       - "./traefik/acme.json:/acme.json"
       - "./traefik/traefik.toml:/traefik.toml"
-      - "./traefik/conf/:conf:ro"
+      - "./traefik/conf/:/conf/:ro"
     
   dockerproxy:
     container_name: dockerproxy
