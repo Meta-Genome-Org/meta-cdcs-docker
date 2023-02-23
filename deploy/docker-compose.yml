@@ -31,9 +31,9 @@ services:
     image: jac111/genome_front
     restart: always
     networks:
-      -traefik
+      - traefik
     expose:
-      -"3000"
+      - "3000"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik"
