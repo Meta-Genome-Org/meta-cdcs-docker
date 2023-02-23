@@ -146,6 +146,11 @@ services:
     networks:
       - internal
 
+networks:
+  default:
+  internal:
+  traefik:
+
 volumes:
   postgres_data:
   redis_data:
