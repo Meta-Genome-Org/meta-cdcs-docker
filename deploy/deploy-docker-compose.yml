@@ -45,8 +45,6 @@ services:
       - cdcs_socket:/tmp/curator/
       - cdcs_static:/srv/curator/static.prod
       - ./cdcs/${SETTINGS}.py:/srv/curator/${PROJECT_NAME}/${SETTINGS}.py
-      - ~/Documents/github/Meta-Genome-Org/meta-mdcs:/srv/curator/
-      - ~/Documents/github/Meta-Genome-Org/core_main_app/core_main_app:/usr/local/lib/python3.8/site-packages/core_main_app
     environment:
       - DJANGO_SETTINGS_MODULE=${PROJECT_NAME}.${SETTINGS}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
