@@ -1,0 +1,1 @@
+docker-compose -f "local-docker-compose.yml" -f "./mongo/m-local-docker-compose.yml" up
