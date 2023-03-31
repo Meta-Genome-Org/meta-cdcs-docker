@@ -1,3 +1,6 @@
+Our Documentation: https://metagenome-docs.readthedocs.io/
+(THe below is unchanged from the original repository)
+
 # CDCS Docker
 
 This repository contains `docker-compose` files to build and deploy CDCS containers.
