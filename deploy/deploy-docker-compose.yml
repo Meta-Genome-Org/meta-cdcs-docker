@@ -1,0 +1,188 @@
+version: "3"
+services:
+  traefik:
+    container_name: traefik
+    image: traefik
+    restart: always
+    networks:
+      - default
+      - traefik
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - "./traefik/acme.json:/acme.json"
+      - "./traefik/traefik.toml:/traefik.toml"
+      - "./traefik/conf/:/conf/:ro"
+
+  dockerproxy:
+    container_name: dockerproxy
+    image: tecnativa/docker-socket-proxy
+    restart: always
+    environment:
+      CONTAINERS: 1
+    networks:
+      - traefik
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  genome_front:
+    image: MetaGenomeOrg/genome_front
+    restart: always
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik"
+
+      - "traefik.http.routers.meta-genome-http.entrypoints=http"
+      - "traefik.http.routers.meta-genome-http.rule=Host(`${METAGENOME_URL}`)"
+      - "traefik.http.routers.meta-genome-http.middlewares=httpsRedirect@file"
+
+      - "traefik.http.routers.meta-genome.entrypoints=https"
+      - "traefik.http.routers.meta-genome.rule=Host(`${METAGENOME_URL}`)"
+      - "traefik.http.routers.meta-genome.tls=true"
+      - "traefik.http.routers.meta-genome.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.meta-genome.middlewares=secured@file"
+      - "traefik.http.services.meta-genome.loadbalancer.server.port=80"
+
+  metag_flask:
+    image: MetaGenomeOrg/metag_flask_api
+    container_name: ${PROJECT_NAME}_flask
+    environment:
+      - CDCS_HOSTNAME=https://portal.${METAGENOME_URL}/
+      - CORS_ORIGIN=https://${METAGENOME_URL}/
+    networks:
+      - traefik
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik"
+
+      - "traefik.http.routers.api-meta-genome-http.entrypoints=http"
+      - "traefik.http.routers.api-meta-genome-http.rule=Host(`api.${METAGENOME_URL}`)"
+
+      - "traefik.http.routers.api-meta-genome.entrypoints=https"
+      - "traefik.http.routers.api-meta-genome.rule=Host(`api.${METAGENOME_URL}`)"
+      - "traefik.http.routers.api-meta-genome.tls=true"
+      - "traefik.http.routers.api-meta-genome.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api-meta-genome.middlewares=secured@file"
+
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://${METAGENOME_URL}"
+      - "traefik.http.routers.api-meta-genome.middlewares=cors"
+
+      - "traefik.http.services.api-meta-genome.loadbalancer.server.port=5000"
+
+  curator_nginx:
+    image: nginx:${NGINX_VERSION}
+    container_name: ${PROJECT_NAME}_cdcs_nginx
+    restart: always
+    depends_on:
+      - cdcs
+    environment:
+      - HOSTNAME=${HOSTNAME}
+    volumes:
+      - cdcs_socket:/tmp/curator/
+      - cdcs_static:/srv/curator_static
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/${SERVER_CONF}.conf:/etc/nginx/templates/default.conf.template
+    networks:
+      - traefik
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik"
+
+      - "traefik.http.routers.portal-meta-genome-http.entrypoints=http"
+      - "traefik.http.routers.portal-meta-genome-http.rule=Host(`portal.${METAGENOME_URL}`)"
+
+      - "traefik.http.routers.portal-meta-genome.entrypoints=https"
+      - "traefik.http.routers.portal-meta-genome.rule=Host(`portal.${METAGENOME_URL}`)"
+      - "traefik.http.routers.portal-meta-genome.tls=true"
+      - "traefik.http.routers.portal-meta-genome.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.portal-meta-genome.middlewares=secured@file"
+
+      - "traefik.http.services.portal-meta-genome.loadbalancer.server.port=80"
+
+  curator_postgres:
+    image: postgres:${POSTGRES_VERSION}
+    container_name: ${PROJECT_NAME}_cdcs_postgres
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - internal
+
+  curator_redis:
+    image: redis:${REDIS_VERSION}
+    container_name: ${PROJECT_NAME}_cdcs_redis
+    command: redis-server --requirepass ${REDIS_PASS}
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+
+  cdcs:
+    build:
+      context: ../build/cdcs
+      args:
+      - CDCS_REPO=${CDCS_REPO}
+      - BRANCH=${BRANCH}
+      - PROJECT_NAME=${PROJECT_NAME}
+      - PIP_CONF=${PIP_CONF}
+      - PYTHON_VERSION=${PYTHON_VERSION}
+    container_name: ${PROJECT_NAME}_cdcs
+    restart: always
+    depends_on:
+      - curator_redis
+      - curator_postgres
+    volumes:
+      - cdcs_media:/srv/curator/media
+      - cdcs_socket:/tmp/curator/
+      - cdcs_static:/srv/curator/static.prod
+      - ./cdcs/${SETTINGS}.py:/srv/curator/${PROJECT_NAME}/${SETTINGS}.py
+    environment:
+      - DJANGO_SETTINGS_MODULE=${PROJECT_NAME}.${SETTINGS}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - SERVER_URI=${SERVER_URI}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - SERVER_NAME=${SERVER_NAME:-}
+      - MONGO_HOST=${PROJECT_NAME}_cdcs_mongo
+      - MONGO_PORT=${MONGO_PORT:-27017}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_USER=${MONGO_USER}
+      - MONGO_PASS=${MONGO_PASS}
+      - POSTGRES_HOST=${PROJECT_NAME}_cdcs_postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASS=${POSTGRES_PASS}
+      - REDIS_HOST=${PROJECT_NAME}_cdcs_redis
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASS=${REDIS_PASS}
+    env_file:
+      - ./saml2/.env
+      - ./handle/.env
+      - ./extra/.env
+    command:
+      - ${PROJECT_NAME}
+      - ${WEB_SERVER:-uwsgi}
+    networks:
+      - internal
+
+networks:
+  default:
+  internal:
+  traefik:
+
+volumes:
+  postgres_data:
+  redis_data:
+  cdcs_media:
+  cdcs_socket:
+  cdcs_static:
