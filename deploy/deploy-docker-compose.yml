@@ -27,7 +27,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   genome_front:
-    image: jac111/genome_front:4
+    image: MetaGenomeOrg/genome_front
     restart: always
     networks:
       - traefik
@@ -47,7 +47,7 @@ services:
       - "traefik.http.services.meta-genome.loadbalancer.server.port=80"
 
   metag_flask:
-    image: jac111/metag_flask_api:6
+    image: MetaGenomeOrg/metag_flask_api
     container_name: ${PROJECT_NAME}_flask
     environment:
       - CDCS_HOSTNAME=https://portal.${METAGENOME_URL}/
