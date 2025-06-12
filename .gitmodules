@@ -1,0 +1,6 @@
+[submodule "build/metag_flask_api"]
+	path = build/metag_flask_api
+	url = https://github.com/Meta-Genome-Org/metag_flask_api.git
+[submodule "build/metag_frontend"]
+	path = build/metag_frontend
+	url = https://github.com/Meta-Genome-Org/metag_frontend.git
