@@ -1,6 +1,7 @@
 # Exact Python package versions for the mdcs image, applied via PIP_CONSTRAINT.
 # Generated 2026-11-04 from 'pip freeze' of the image then running on
-# meta-genome.org (meta-mdcs 363ed97, Python 3.10). Upgrade packages by
+# meta-genome.org (meta-mdcs 363ed97, Python 3.10 on Debian 11; now built on
+# Debian 12, same Python). Upgrade packages by
 # editing this file in a reviewed PR.
 amqp==5.3.1
 asgiref==3.8.1

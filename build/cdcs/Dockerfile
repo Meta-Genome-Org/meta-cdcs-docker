@@ -1,6 +1,7 @@
 # Base images are pinned by digest so Dependabot can raise a PR for each
-# rebuild of the tag. Change both FROM lines together.
-FROM python:3.10-slim-bullseye@sha256:f1fb49e4d5501ac93d0ca519fb7ee6250842245aba8612926a46a0832a1ed089 AS clone
+# rebuild of the tag. Change both FROM lines together. Debian 12: bullseye's
+# security archive started returning 404s after its LTS ended (2026-08).
+FROM python:3.10-slim-bookworm@sha256:5be5aaecb962a41567bc8041f1e9e3432cb085b037fe057f9a562630b2e4b370 AS clone
 
 ARG CDCS_REPO
 ARG BRANCH
@@ -14,7 +15,7 @@ RUN apt-get update && apt-get install -y git
 RUN git clone -b $BRANCH $CDCS_REPO /tmp/repo && \
     if [ -n "$CDCS_COMMIT" ]; then git -C /tmp/repo checkout --detach "$CDCS_COMMIT"; fi
 
-FROM python:3.10-slim-bullseye@sha256:f1fb49e4d5501ac93d0ca519fb7ee6250842245aba8612926a46a0832a1ed089 AS build
+FROM python:3.10-slim-bookworm@sha256:5be5aaecb962a41567bc8041f1e9e3432cb085b037fe057f9a562630b2e4b370 AS build
 LABEL maintainer="National Institute of Standards and Technology"
 
 ARG PROJECT_NAME
@@ -28,8 +29,8 @@ COPY --from=clone /tmp/repo $DOCKYARD_SRVPROJ
 
 # Install necessary packages
 RUN apt-get update && apt-get --no-install-recommends install -y \
-    netcat python g++ gcc dnsutils gettext \
-    libxml2-dev libxslt-dev python-dev zlib1g libssl-dev \
+    netcat-openbsd g++ gcc dnsutils gettext \
+    libxml2-dev libxslt-dev zlib1g libssl-dev \
     python3-pip libpq-dev postgresql-client xmlsec1 \
     && rm -rf /var/lib/apt/lists/*
 
