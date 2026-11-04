@@ -29,7 +29,7 @@ COPY --from=clone /tmp/repo $DOCKYARD_SRVPROJ
 
 # Install necessary packages
 RUN apt-get update && apt-get --no-install-recommends install -y \
-    netcat-openbsd g++ gcc dnsutils gettext \
+    g++ python3-dev gcc gettext  \
     libxml2-dev libxslt-dev zlib1g libssl-dev \
     python3-pip libpq-dev postgresql-client xmlsec1 \
     && rm -rf /var/lib/apt/lists/*
@@ -37,6 +37,7 @@ RUN apt-get update && apt-get --no-install-recommends install -y \
 # Setup pip
 RUN mkdir -p /root/.config/pip
 COPY pip/$PIP_CONF/pip.conf /root/.config/pip
+RUN pip install --upgrade pip
 
 # Pin every Python package to a known-good version. meta-mdcs leaves Django,
 # celery and others unpinned, so without this a rebuild is an upgrade.
