@@ -1,7 +1,7 @@
 # Base images are pinned by digest so Dependabot can raise a PR for each
 # rebuild of the tag. Change both FROM lines together. Debian 12: bullseye's
 # security archive started returning 404s after its LTS ended (2026-08).
-FROM python:3.10-slim-bookworm@sha256:5be5aaecb962a41567bc8041f1e9e3432cb085b037fe057f9a562630b2e4b370 AS clone
+FROM python:3.11-slim-bookworm@sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd AS clone
 
 ARG CDCS_REPO
 ARG BRANCH
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y git
 RUN git clone -b $BRANCH $CDCS_REPO /tmp/repo && \
     if [ -n "$CDCS_COMMIT" ]; then git -C /tmp/repo checkout --detach "$CDCS_COMMIT"; fi
 
-FROM python:3.10-slim-bookworm@sha256:5be5aaecb962a41567bc8041f1e9e3432cb085b037fe057f9a562630b2e4b370 AS build
+FROM python:3.11-slim-bookworm@sha256:94a8fee35252d06ab75856f15f12c7bae67b10e8a6da93c7fded82b2610926cd AS build
 LABEL maintainer="National Institute of Standards and Technology"
 
 ARG PROJECT_NAME
