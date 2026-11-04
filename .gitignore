@@ -2,3 +2,8 @@
 .DS_Store
 volumes/
 backup/
+
+# Traefik ACME state holds TLS private keys; live copy is in volumes/traefik/
+deploy/traefik/acme.json
+# Local backup copies of edited config
+*.bak-*
