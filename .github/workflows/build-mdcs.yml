@@ -25,7 +25,7 @@ env:
   # it is never changed by a rebuild.
   CDCS_REPO: https://github.com/Meta-Genome-Org/meta-mdcs.git
   CDCS_BRANCH: release
-  CDCS_COMMIT: 363ed97a7e314e0299ef88fbff0518e568720a15
+  CDCS_COMMIT: ccdfc8d46a2fb17e94f536b43a81d7468b47096a
 
 jobs:
   build:
