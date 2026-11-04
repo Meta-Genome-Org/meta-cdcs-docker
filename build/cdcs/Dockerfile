@@ -1,17 +1,20 @@
-ARG PYTHON_VERSION
-FROM python:$PYTHON_VERSION AS clone
+# Base images are pinned by digest so Dependabot can raise a PR for each
+# rebuild of the tag. Change both FROM lines together.
+FROM python:3.10-slim-bullseye@sha256:f1fb49e4d5501ac93d0ca519fb7ee6250842245aba8612926a46a0832a1ed089 AS clone
 
 ARG CDCS_REPO
 ARG BRANCH
+# Optional: exact commit of $BRANCH to build, for reproducible images
+ARG CDCS_COMMIT
 
 # Install git
 RUN apt-get update && apt-get install -y git
 
 # Clone git repository
-RUN git clone --depth 1 -b $BRANCH $CDCS_REPO /tmp/repo
+RUN git clone -b $BRANCH $CDCS_REPO /tmp/repo && \
+    if [ -n "$CDCS_COMMIT" ]; then git -C /tmp/repo checkout --detach "$CDCS_COMMIT"; fi
 
-ARG PYTHON_VERSION
-FROM python:$PYTHON_VERSION AS build
+FROM python:3.10-slim-bullseye@sha256:f1fb49e4d5501ac93d0ca519fb7ee6250842245aba8612926a46a0832a1ed089 AS build
 LABEL maintainer="National Institute of Standards and Technology"
 
 ARG PROJECT_NAME
@@ -33,6 +36,11 @@ RUN apt-get update && apt-get --no-install-recommends install -y \
 # Setup pip
 RUN mkdir -p /root/.config/pip
 COPY pip/$PIP_CONF/pip.conf /root/.config/pip
+
+# Pin every Python package to a known-good version. meta-mdcs leaves Django,
+# celery and others unpinned, so without this a rebuild is an upgrade.
+COPY ./constraints.txt /etc/pip-constraints.txt
+ENV PIP_CONSTRAINT=/etc/pip-constraints.txt
 
 # Install additional python packages
 RUN pip install psycopg2 uwsgi gunicorn[gthread]

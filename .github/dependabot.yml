@@ -1,0 +1,18 @@
+# Dependabot reads this file from the default branch only.
+version: 2
+updates:
+  # Base image of the mdcs build. Digest-only PRs auto-merge after CI
+  # (see the automerge job in build-mdcs.yml); tag changes need review.
+  - package-ecosystem: docker
+    directory: /build/cdcs
+    target-branch: frontend
+    schedule:
+      interval: daily
+    labels: [dependencies, docker]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: frontend
+    schedule:
+      interval: weekly
+    labels: [dependencies, github-actions]

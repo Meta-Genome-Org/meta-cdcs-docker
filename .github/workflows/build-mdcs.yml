@@ -1,0 +1,157 @@
+name: Build mdcs image
+
+on:
+  push:
+    branches: [frontend]
+    paths:
+      - build/cdcs/**
+      - .github/workflows/build-mdcs.yml
+  pull_request:
+    paths:
+      - build/cdcs/**
+      - .github/workflows/build-mdcs.yml
+  # Weekly rebuild picks up OS security fixes in the pinned base image.
+  # Scheduled runs use the default branch's copy of this file.
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/meta-genome-org/mdcs
+  # The meta-mdcs commit baked into the image. Bump it in a reviewed PR;
+  # it is never changed by a rebuild.
+  CDCS_REPO: https://github.com/Meta-Genome-Org/meta-mdcs.git
+  CDCS_BRANCH: release
+  CDCS_COMMIT: 363ed97a7e314e0299ef88fbff0518e568720a15
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/frontend' }}
+            type=sha,prefix=sha-
+          labels: |
+            org.opencontainers.image.description=MDCS for meta-genome.org (meta-mdcs ${{ env.CDCS_COMMIT }})
+            org.meta-genome.mdcs.commit=${{ env.CDCS_COMMIT }}
+
+      - name: Build for scanning
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: build/cdcs
+          load: true
+          tags: mdcs:scan
+          build-args: |
+            CDCS_REPO=${{ env.CDCS_REPO }}
+            BRANCH=${{ env.CDCS_BRANCH }}
+            CDCS_COMMIT=${{ env.CDCS_COMMIT }}
+            PROJECT_NAME=mdcs
+            PIP_CONF=pypi
+          cache-from: type=gha,scope=mdcs
+          cache-to: type=gha,mode=max,scope=mdcs
+
+      # Report-only until the base image is off Debian 11: it has unfixable
+      # CVEs that would fail every build. Switch exit-code to "1" afterwards.
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: mdcs:scan
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: sarif
+          output: trivy.sarif
+          exit-code: "0"
+
+      - uses: github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4.39.2
+        with:
+          sarif_file: trivy.sarif
+          category: mdcs-image
+
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: github.event_name != 'pull_request'
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: build/cdcs
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CDCS_REPO=${{ env.CDCS_REPO }}
+            BRANCH=${{ env.CDCS_BRANCH }}
+            CDCS_COMMIT=${{ env.CDCS_COMMIT }}
+            PROJECT_NAME=mdcs
+            PIP_CONF=pypi
+          cache-from: type=gha,scope=mdcs
+          provenance: mode=max
+          sbom: true
+
+      - if: github.event_name != 'pull_request'
+        run: echo "Pushed \`${IMAGE}@${{ steps.push.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # Dependabot PRs that only change image digests (same tag, rebuilt upstream)
+  # merge once the build and scan above pass. Anything else waits for a human.
+  automerge:
+    needs: build
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+    steps:
+      - id: check
+        shell: python
+        run: |
+          import os, re, subprocess
+          diff = subprocess.run(["gh", "pr", "diff", os.environ["PR_URL"]],
+                                capture_output=True, text=True, check=True).stdout
+          removed, added = [], []
+          for line in diff.splitlines():
+              if line.startswith(("--- a/", "+++ b/", "--- /dev/null", "+++ /dev/null")):
+                  continue
+              if line.startswith("-"):
+                  removed.append(line[1:])
+              elif line.startswith("+"):
+                  added.append(line[1:])
+          digest = re.compile(r"@sha256:[0-9a-f]{64}")
+          only_digests = (
+              bool(removed)
+              and len(removed) == len(added)
+              and all(digest.search(l) for l in removed + added)
+              and [digest.sub("", l) for l in removed] == [digest.sub("", l) for l in added]
+          )
+          print("digest-only change" if only_digests else "not digest-only; leaving for review")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"digest_only={str(only_digests).lower()}\n")
+
+      - if: steps.check.outputs.digest_only == 'true'
+        run: |
+          gh pr merge --squash "$PR_URL"
+          # Merges by GITHUB_TOKEN don't trigger push workflows, so publish explicitly
+          gh workflow run build-mdcs.yml --ref frontend
