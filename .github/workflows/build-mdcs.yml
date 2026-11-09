@@ -50,6 +50,11 @@ jobs:
             org.opencontainers.image.description=MDCS for meta-genome.org (meta-mdcs ${{ env.CDCS_COMMIT }})
             org.meta-genome.mdcs.commit=${{ env.CDCS_COMMIT }}
 
+      # Passed to the build so the OS security-update layer is rebuilt at
+      # least daily instead of being served from the build cache.
+      - id: date
+        run: echo "today=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Build for scanning
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -62,6 +67,7 @@ jobs:
             CDCS_COMMIT=${{ env.CDCS_COMMIT }}
             PROJECT_NAME=mdcs
             PIP_CONF=pypi
+            OS_UPDATES_DATE=${{ steps.date.outputs.today }}
           cache-from: type=gha,scope=mdcs
           cache-to: type=gha,mode=max,scope=mdcs
 
@@ -103,6 +109,7 @@ jobs:
             CDCS_COMMIT=${{ env.CDCS_COMMIT }}
             PROJECT_NAME=mdcs
             PIP_CONF=pypi
+            OS_UPDATES_DATE=${{ steps.date.outputs.today }}
           cache-from: type=gha,scope=mdcs
           provenance: mode=max
           sbom: true

@@ -27,8 +27,13 @@ ENV DOCKYARD_SRVPROJ="/srv/curator"
 # Copy cloned cdcs repository
 COPY --from=clone /tmp/repo $DOCKYARD_SRVPROJ
 
-# Install necessary packages
-RUN apt-get update && apt-get --no-install-recommends install -y \
+# Install necessary packages, applying Debian security fixes the base image
+# doesn't include yet. CI passes today's date as OS_UPDATES_DATE so this
+# layer is rebuilt at least daily.
+ARG OS_UPDATES_DATE
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    && apt-get --no-install-recommends install -y \
     g++ python3-dev gcc gettext  \
     libxml2-dev libxslt-dev zlib1g libssl-dev \
     python3-pip libpq-dev postgresql-client xmlsec1 \
